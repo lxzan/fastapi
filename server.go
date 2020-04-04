@@ -4,7 +4,15 @@ import (
 	"net/http"
 )
 
+type Runmode uint8
+
+const (
+	DebugMode Runmode = iota
+	ReleaseMode
+)
+
 type Server struct {
+	mode       Runmode
 	getRouter  map[string][]HandleFunc
 	postRouter map[string][]HandleFunc
 	anyRouter  map[string][]HandleFunc
@@ -19,11 +27,32 @@ func New() *Server {
 	}
 }
 
+func (this *Server) Group(prefix string, handles ...HandleFunc) *Group {
+	if len(handles) == 0 {
+		handles = make([]HandleFunc, 0)
+	}
+
+	return &Group{
+		server:   this,
+		prefix:   prefix,
+		handlers: handles,
+	}
+}
+
 func (this *Server) GET(path string, handles ...HandleFunc) {
 	this.getRouter[path] = handles
 }
 
-func (this *Server) Run(addr string) error {
+func (this *Server) POST(path string, handles ...HandleFunc) {
+	this.postRouter[path] = handles
+}
+
+func (this *Server) ANY(path string, handles ...HandleFunc) {
+	this.anyRouter[path] = handles
+}
+
+func (this *Server) Run(mode Runmode, addr string) error {
+	this.mode = mode
 	if this.Catch == nil {
 		this.Catch = defaultCatcher
 	}
@@ -36,6 +65,7 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		Request:  req,
 		Response: res,
 		Storage:  Any{},
+		Mode:     this.mode,
 		next:     true,
 	}
 
