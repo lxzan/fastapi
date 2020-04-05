@@ -19,20 +19,11 @@ var defaultCatcher = func(ctx *Context, err interface{}) {
 	}
 }
 
-var ContextType = struct {
-	JSON string
-	Form string
-}{
-	JSON: "application/json",
-	Form: "application/x-www-form-urlencoded",
-}
-
 type HandleFunc func(ctx *Context)
 
 type Context struct {
 	Request  *http.Request
 	Response http.ResponseWriter
-	Mode     Runmode
 	next     bool
 	Storage  Any
 }

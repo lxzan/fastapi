@@ -12,7 +12,7 @@ const (
 )
 
 type Server struct {
-	mode       Runmode
+	handlers   []HandleFunc
 	getRouter  map[string][]HandleFunc
 	postRouter map[string][]HandleFunc
 	anyRouter  map[string][]HandleFunc
@@ -21,38 +21,49 @@ type Server struct {
 
 func New() *Server {
 	return &Server{
+		handlers:   make([]HandleFunc, 0),
 		getRouter:  make(map[string][]HandleFunc),
 		postRouter: make(map[string][]HandleFunc),
 		anyRouter:  make(map[string][]HandleFunc),
 	}
 }
 
-func (this *Server) Group(prefix string, handles ...HandleFunc) *Group {
-	if len(handles) == 0 {
-		handles = make([]HandleFunc, 0)
+func (this *Server) Use(handles ...HandleFunc) {
+	this.handlers = append(this.handlers, handles...)
+}
+
+func (this *Server) prepare(handlers ...HandleFunc) []HandleFunc {
+	var h = make([]HandleFunc, 0)
+	h = append(h, this.handlers...)
+	h = append(h, handlers...)
+	return h
+}
+
+func (this *Server) Group(prefix string, handlers ...HandleFunc) *Group {
+	if len(handlers) == 0 {
+		handlers = make([]HandleFunc, 0)
 	}
 
 	return &Group{
 		server:   this,
 		prefix:   prefix,
-		handlers: handles,
+		handlers: this.prepare(handlers...),
 	}
 }
 
 func (this *Server) GET(path string, handles ...HandleFunc) {
-	this.getRouter[path] = handles
+	this.getRouter[path] = this.prepare(handles...)
 }
 
 func (this *Server) POST(path string, handles ...HandleFunc) {
-	this.postRouter[path] = handles
+	this.postRouter[path] = this.prepare(handles...)
 }
 
 func (this *Server) ANY(path string, handles ...HandleFunc) {
-	this.anyRouter[path] = handles
+	this.anyRouter[path] = this.prepare(handles...)
 }
 
-func (this *Server) Run(mode Runmode, addr string) error {
-	this.mode = mode
+func (this *Server) Run(addr string) error {
 	if this.Catch == nil {
 		this.Catch = defaultCatcher
 	}
@@ -65,7 +76,6 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		Request:  req,
 		Response: res,
 		Storage:  Any{},
-		Mode:     this.mode,
 		next:     true,
 	}
 

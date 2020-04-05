@@ -31,3 +31,21 @@ func (this *Group) ANY(path string, handlers ...HandleFunc) {
 	p, h := this.prepare(path, handlers...)
 	this.server.anyRouter[p] = h
 }
+
+func (this *Group) Group(prefix string, handlers ...HandleFunc) *Group {
+	if len(handlers) == 0 {
+		handlers = make([]HandleFunc, 0)
+	}
+	if prefix == "/" {
+		prefix = ""
+	}
+	var myHandlers = make([]HandleFunc, 0)
+	myHandlers = append(myHandlers, this.handlers...)
+	myHandlers = append(myHandlers, handlers...)
+
+	return &Group{
+		server:   this.server,
+		prefix:   this.prefix + prefix,
+		handlers: myHandlers,
+	}
+}
