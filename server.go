@@ -1,14 +1,17 @@
 package fastapi
 
 import (
+	"fmt"
 	"net/http"
+	"reflect"
+	"runtime"
 )
 
 type Runmode uint8
 
 const (
 	DebugMode Runmode = iota
-	ReleaseMode
+	ProductMode
 )
 
 type Server struct {
@@ -67,7 +70,13 @@ func (this *Server) Run(addr string) error {
 	if this.Catch == nil {
 		this.Catch = defaultCatcher
 	}
+	this.fprintRouters()
 
+	var mode = "debug"
+	if globalMode == ProductMode {
+		mode = "product"
+	}
+	fmt.Printf("FastAPI server is listening on %s in %s mode.\n", addr, mode)
 	return http.ListenAndServe(addr, this)
 }
 
@@ -108,5 +117,80 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		if !ctx.next {
 			break
 		}
+	}
+}
+
+func (this *Server) fprintRouters() {
+	var m = make([]struct {
+		Path   string
+		Method string
+		Fn     string
+	}, 0)
+	for k, fns := range this.getRouter {
+		var n = len(fns)
+		if n == 0 {
+			continue
+		}
+
+		fn := runtime.FuncForPC(reflect.ValueOf(fns[n-1]).Pointer()).Name()
+		m = append(m, struct {
+			Path   string
+			Method string
+			Fn     string
+		}{Path: k, Method: "GET", Fn: fn})
+	}
+	for k, fns := range this.postRouter {
+		var n = len(fns)
+		if n == 0 {
+			continue
+		}
+
+		fn := runtime.FuncForPC(reflect.ValueOf(fns[n-1]).Pointer()).Name()
+		m = append(m, struct {
+			Path   string
+			Method string
+			Fn     string
+		}{Path: k, Method: "POST", Fn: fn})
+	}
+	for k, fns := range this.anyRouter {
+		var n = len(fns)
+		if n == 0 {
+			continue
+		}
+
+		fn := runtime.FuncForPC(reflect.ValueOf(fns[n-1]).Pointer()).Name()
+		m = append(m, struct {
+			Path   string
+			Method string
+			Fn     string
+		}{Path: k, Method: "GET", Fn: fn}, struct {
+			Path   string
+			Method string
+			Fn     string
+		}{Path: k, Method: "POST", Fn: fn})
+	}
+
+	var length = len(m)
+	for i := 0; i < length-1; i++ {
+		for j := i + 1; j < length; j++ {
+			if m[i].Path > m[j].Path {
+				m[i], m[j] = m[j], m[i]
+			}
+		}
+	}
+
+	var maxLength = 0
+	for i := 0; i < length; i++ {
+		if len(m[i].Path) > maxLength {
+			maxLength = len(m[i].Path)
+		}
+	}
+	for _, item := range m {
+		fmt.Printf(
+			"%s %s -> %s\n",
+			appendSpace("["+item.Method+"]", 6),
+			appendSpace(item.Path, maxLength),
+			item.Fn,
+		)
 	}
 }
