@@ -9,8 +9,12 @@ func (this *TransError) Error() string {
 	return this.Message
 }
 
+func NewError(code Code, msg string) *Error {
+	return &Error{Code: code, Msg: msg}
+}
+
 type Error struct {
-	Code int    `json:"code"`
+	Code Code   `json:"code"`
 	Msg  string `json:"msg"`
 }
 
@@ -26,5 +30,7 @@ func (this *Error) Error() string {
 }
 
 func Throw(err error) {
-	panic(err)
+	if err != nil {
+		panic(err)
+	}
 }

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"reflect"
 	"runtime"
+	"strings"
 )
 
 type Runmode uint8
@@ -94,6 +95,7 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 		}
 	}()
 
+	req.URL.Path = strings.TrimSpace(req.URL.Path)
 	var handlers []HandleFunc
 	var exist bool
 

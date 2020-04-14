@@ -1,23 +1,35 @@
 package fastapi
 
 import (
-	"errors"
 	"fmt"
 	"github.com/go-playground/validator/v10"
 	"github.com/json-iterator/go"
+	"github.com/pkg/errors"
 	"io/ioutil"
 	"mime"
+	"net"
 	"net/http"
 	"net/url"
 	"reflect"
+	"runtime"
 )
 
 var defaultCatcher = func(ctx *Context, err interface{}) {
+	var err1 = fmt.Sprintf("%v", err)
+	if len(err1) >= 13 && err1[:13] == "runtime error" {
+		buf := make([]byte, 2048)
+		n := runtime.Stack(buf, false)
+		stackInfo := fmt.Sprintf("%s", buf[:n])
+		println(stackInfo)
+		ctx.Write(500, []byte(stackInfo))
+		return
+	}
+
 	myError, ok := err.(*Error)
 	if ok {
 		ctx.JSON(400, myError)
 	} else {
-		var msg = fmt.Sprintf("known exception: %v", err)
+		var msg = fmt.Sprintf("%v", err)
 		ctx.Write(400, []byte(msg))
 	}
 }
@@ -210,4 +222,20 @@ func (this *Context) Next() {
 
 func (this *Context) Abort() {
 	this.next = false
+}
+
+func (this *Context) ClientIP() string {
+	var ip = this.Request.Header.Get("X-Real-Ip")
+	if ip != "" {
+		return ip
+	}
+
+	host, _, err := net.SplitHostPort(this.Request.RemoteAddr)
+	if err != nil {
+		return ""
+	}
+	if host == "::1" {
+		return "127.0.0.1"
+	}
+	return host
 }
