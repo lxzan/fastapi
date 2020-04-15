@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"runtime"
 	"strings"
+	"time"
 )
 
 type Runmode uint8
@@ -82,6 +83,14 @@ func (this *Server) Run(addr string) error {
 }
 
 func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	t0 := time.Now().UnixNano()
+	defer func() {
+		if GetMode() == DebugMode {
+			t1 := time.Now().UnixNano()
+			fmt.Printf("%s %s: %dms used.\n", req.Method, req.URL.Path, (t1-t0)/1000000)
+		}
+	}()
+
 	var ctx = newContext(req, res)
 	defer func() {
 		if err := recover(); err != nil {
