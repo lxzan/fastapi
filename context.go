@@ -36,6 +36,15 @@ var defaultCatcher = func(ctx *Context, err interface{}) {
 
 type HandleFunc func(ctx *Context)
 
+func newContext(req *http.Request, res http.ResponseWriter) *Context {
+	return &Context{
+		Request:  req,
+		Response: res,
+		Storage:  Any{},
+		next:     true,
+	}
+}
+
 type Context struct {
 	Request  *http.Request
 	Response http.ResponseWriter
@@ -59,46 +68,35 @@ func (this *Context) JSON(code int, v interface{}) error {
 }
 
 func (this *Context) Bind(v interface{}) error {
-	contentType, _, err := mime.ParseMediaType(this.Request.Header.Get("Content-Type"))
-	if err != nil {
-		return err
-	}
-
-	if contentType == ContextType.JSON {
-		body, err := ioutil.ReadAll(this.Request.Body)
+	if this.Request.Method == "POST" {
+		contentType, _, err := mime.ParseMediaType(this.Request.Header.Get("Content-Type"))
 		if err != nil {
 			return err
 		}
 
-		if err := jsoniter.Unmarshal(body, v); err != nil {
-			return err
-		}
-	} else if contentType == ContextType.Form {
-		if err := this.Request.ParseForm(); err != nil {
-			return err
-		}
-		this.bindForm(this.Request.Form, reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
-	} else {
-		return errors.New("unknown content type")
-	}
-
-	this.setDefault(reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
-	err = validate.Struct(v)
-	if err != nil {
-		errs := err.(validator.ValidationErrors).Translate(trans)
-		for k, v := range errs {
-			return &TransError{
-				Message: v,
-				Field:   k,
+		if contentType == ContextType.JSON {
+			body, err := ioutil.ReadAll(this.Request.Body)
+			if err != nil {
+				return err
 			}
+
+			if err := jsoniter.Unmarshal(body, v); err != nil {
+				return err
+			}
+		} else if contentType == ContextType.Form {
+			if err := this.Request.ParseForm(); err != nil {
+				return err
+			}
+			this.bindForm(this.Request.Form, reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
+		} else {
+			return errors.New("unknown content type")
 		}
+	} else if this.Request.Method == "GET" {
+		this.bindForm(this.Request.URL.Query(), reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
+	} else {
+		return errors.New("unsupport http method")
 	}
 
-	return nil
-}
-
-func (this *Context) BindQuery(v interface{}) error {
-	this.bindForm(this.Request.URL.Query(), reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
 	this.setDefault(reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
 	err := validate.Struct(v)
 	if err != nil {
@@ -110,6 +108,7 @@ func (this *Context) BindQuery(v interface{}) error {
 			}
 		}
 	}
+
 	return nil
 }
 
@@ -163,11 +162,19 @@ func (this *Context) bindForm(query url.Values, typs reflect.Type, values reflec
 		}
 
 		var kind = t.Type.Kind()
+		if kind == reflect.Struct {
+			this.bindForm(query, t.Type, v)
+			continue
+		} else if kind == reflect.Ptr {
+			item := v.Interface()
+			this.bindForm(query, reflect.TypeOf(item).Elem(), reflect.ValueOf(item).Elem())
+			continue
+		}
+
 		tag := t.Tag.Get("json")
 		if tag == "" {
 			tag = t.Name
 		}
-
 		var vals []string
 		var ok bool
 		if kind == reflect.Slice {

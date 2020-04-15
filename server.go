@@ -82,13 +82,7 @@ func (this *Server) Run(addr string) error {
 }
 
 func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
-	var ctx = &Context{
-		Request:  req,
-		Response: res,
-		Storage:  Any{},
-		next:     true,
-	}
-
+	var ctx = newContext(req, res)
 	defer func() {
 		if err := recover(); err != nil {
 			this.Catch(ctx, err)
