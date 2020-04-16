@@ -37,6 +37,7 @@ func (this *Server) SetCatch(fn func(ctx *Context, err interface{})) {
 	this.catch = fn
 }
 
+// global middleware
 func (this *Server) Use(handles ...HandlerFunc) {
 	for _, handle := range handles {
 		name := runtime.FuncForPC(reflect.ValueOf(handle).Pointer()).Name()
@@ -48,7 +49,6 @@ func (this *Server) Use(handles ...HandlerFunc) {
 
 func (this *Server) prepare(handlers ...HandlerFunc) []HandlerFunc {
 	var h = make([]HandlerFunc, 0)
-	h = append(h, this.handlers...)
 	h = append(h, handlers...)
 	return h
 }
@@ -61,7 +61,7 @@ func (this *Server) Group(prefix string, handlers ...HandlerFunc) *Group {
 	return &Group{
 		server:   this,
 		prefix:   prefix,
-		handlers: this.prepare(handlers...),
+		handlers: handlers,
 	}
 }
 
@@ -107,6 +107,13 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 			this.catch(ctx, err)
 		}
 	}()
+
+	for _, fn := range this.handlers {
+		fn(ctx)
+		if !ctx.next {
+			return
+		}
+	}
 
 	req.URL.Path = strings.TrimSpace(req.URL.Path)
 	var handlers []HandlerFunc
