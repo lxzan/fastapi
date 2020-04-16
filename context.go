@@ -20,6 +20,7 @@ var defaultCatcher = func(ctx *Context, err interface{}) {
 		buf := make([]byte, 2048)
 		n := runtime.Stack(buf, false)
 		stackInfo := fmt.Sprintf("%s", buf[:n])
+		logger.Error().Msg("Runtime Error")
 		println(stackInfo)
 		ctx.Write(500, []byte(stackInfo))
 		return
@@ -34,7 +35,7 @@ var defaultCatcher = func(ctx *Context, err interface{}) {
 	}
 }
 
-type HandleFunc func(ctx *Context)
+type HandlerFunc func(ctx *Context)
 
 func newContext(req *http.Request, res http.ResponseWriter) *Context {
 	return &Context{

@@ -17,36 +17,45 @@ const (
 )
 
 type Server struct {
-	handlers   []HandleFunc
-	getRouter  map[string][]HandleFunc
-	postRouter map[string][]HandleFunc
-	anyRouter  map[string][]HandleFunc
-	Catch      func(ctx *Context, err interface{})
+	handlers   []HandlerFunc
+	getRouter  map[string][]HandlerFunc
+	postRouter map[string][]HandlerFunc
+	anyRouter  map[string][]HandlerFunc
+	catch      func(ctx *Context, err interface{})
 }
 
 func New() *Server {
 	return &Server{
-		handlers:   make([]HandleFunc, 0),
-		getRouter:  make(map[string][]HandleFunc),
-		postRouter: make(map[string][]HandleFunc),
-		anyRouter:  make(map[string][]HandleFunc),
+		handlers:   make([]HandlerFunc, 0),
+		getRouter:  make(map[string][]HandlerFunc),
+		postRouter: make(map[string][]HandlerFunc),
+		anyRouter:  make(map[string][]HandlerFunc),
 	}
 }
 
-func (this *Server) Use(handles ...HandleFunc) {
-	this.handlers = append(this.handlers, handles...)
+func (this *Server) SetCatch(fn func(ctx *Context, err interface{})) {
+	this.catch = fn
 }
 
-func (this *Server) prepare(handlers ...HandleFunc) []HandleFunc {
-	var h = make([]HandleFunc, 0)
+func (this *Server) Use(handles ...HandlerFunc) {
+	for _, handle := range handles {
+		name := runtime.FuncForPC(reflect.ValueOf(handle).Pointer()).Name()
+		if !strings.Contains(name, "github.com/lxzan/fastapi.Logger") {
+			this.handlers = append(this.handlers, handle)
+		}
+	}
+}
+
+func (this *Server) prepare(handlers ...HandlerFunc) []HandlerFunc {
+	var h = make([]HandlerFunc, 0)
 	h = append(h, this.handlers...)
 	h = append(h, handlers...)
 	return h
 }
 
-func (this *Server) Group(prefix string, handlers ...HandleFunc) *Group {
+func (this *Server) Group(prefix string, handlers ...HandlerFunc) *Group {
 	if len(handlers) == 0 {
-		handlers = make([]HandleFunc, 0)
+		handlers = make([]HandlerFunc, 0)
 	}
 
 	return &Group{
@@ -56,21 +65,21 @@ func (this *Server) Group(prefix string, handlers ...HandleFunc) *Group {
 	}
 }
 
-func (this *Server) GET(path string, handles ...HandleFunc) {
+func (this *Server) GET(path string, handles ...HandlerFunc) {
 	this.getRouter[path] = this.prepare(handles...)
 }
 
-func (this *Server) POST(path string, handles ...HandleFunc) {
+func (this *Server) POST(path string, handles ...HandlerFunc) {
 	this.postRouter[path] = this.prepare(handles...)
 }
 
-func (this *Server) ANY(path string, handles ...HandleFunc) {
+func (this *Server) ANY(path string, handles ...HandlerFunc) {
 	this.anyRouter[path] = this.prepare(handles...)
 }
 
 func (this *Server) Run(addr string) error {
-	if this.Catch == nil {
-		this.Catch = defaultCatcher
+	if this.catch == nil {
+		this.catch = defaultCatcher
 	}
 	this.fprintRouters()
 
@@ -78,28 +87,29 @@ func (this *Server) Run(addr string) error {
 	if globalMode == ProductMode {
 		mode = "product"
 	}
-	fmt.Printf("FastAPI server is listening on %s in %s mode.\n", addr, mode)
+	logger.Info().Msgf("FastAPI server is listening on %s in %s mode.", addr, mode)
 	return http.ListenAndServe(addr, this)
 }
 
 func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	t0 := time.Now().UnixNano()
 	defer func() {
-		if GetMode() == DebugMode {
+		if useLogger {
 			t1 := time.Now().UnixNano()
-			fmt.Printf("%s %s: %dms used.\n", req.Method, req.URL.Path, (t1-t0)/1000000)
+			cost := fmt.Sprintf("%dms", (t1-t0)/1000000)
+			logger.Info().Str("cost", cost).Msgf("%s %s", req.Method, req.URL.Path)
 		}
 	}()
 
 	var ctx = newContext(req, res)
 	defer func() {
 		if err := recover(); err != nil {
-			this.Catch(ctx, err)
+			this.catch(ctx, err)
 		}
 	}()
 
 	req.URL.Path = strings.TrimSpace(req.URL.Path)
-	var handlers []HandleFunc
+	var handlers []HandlerFunc
 	var exist bool
 
 	switch req.Method {

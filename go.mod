@@ -8,4 +8,5 @@ require (
 	github.com/go-playground/validator/v10 v10.2.0
 	github.com/json-iterator/go v1.1.9
 	github.com/pkg/errors v0.9.1
+	github.com/rs/zerolog v1.18.0
 )

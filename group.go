@@ -3,43 +3,43 @@ package fastapi
 type Group struct {
 	server   *Server
 	prefix   string
-	handlers []HandleFunc
+	handlers []HandlerFunc
 }
 
-func (this *Group) prepare(path string, handlers ...HandleFunc) (p string, h []HandleFunc) {
+func (this *Group) prepare(path string, handlers ...HandlerFunc) (p string, h []HandlerFunc) {
 	if path == "/" {
 		path = ""
 	}
 	p = this.prefix + path
-	h = make([]HandleFunc, 0)
+	h = make([]HandlerFunc, 0)
 	h = append(h, this.handlers...)
 	h = append(h, handlers...)
 	return
 }
 
-func (this *Group) GET(path string, handlers ...HandleFunc) {
+func (this *Group) GET(path string, handlers ...HandlerFunc) {
 	p, h := this.prepare(path, handlers...)
 	this.server.getRouter[p] = h
 }
 
-func (this *Group) POST(path string, handlers ...HandleFunc) {
+func (this *Group) POST(path string, handlers ...HandlerFunc) {
 	p, h := this.prepare(path, handlers...)
 	this.server.postRouter[p] = h
 }
 
-func (this *Group) ANY(path string, handlers ...HandleFunc) {
+func (this *Group) ANY(path string, handlers ...HandlerFunc) {
 	p, h := this.prepare(path, handlers...)
 	this.server.anyRouter[p] = h
 }
 
-func (this *Group) Group(prefix string, handlers ...HandleFunc) *Group {
+func (this *Group) Group(prefix string, handlers ...HandlerFunc) *Group {
 	if len(handlers) == 0 {
-		handlers = make([]HandleFunc, 0)
+		handlers = make([]HandlerFunc, 0)
 	}
 	if prefix == "/" {
 		prefix = ""
 	}
-	var myHandlers = make([]HandleFunc, 0)
+	var myHandlers = make([]HandlerFunc, 0)
 	myHandlers = append(myHandlers, this.handlers...)
 	myHandlers = append(myHandlers, handlers...)
 
