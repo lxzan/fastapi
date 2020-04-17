@@ -11,6 +11,14 @@ import (
 
 type Runmode uint8
 
+func (this Runmode) String() string {
+	if this == ProductMode {
+		return "product"
+	} else {
+		return "debug"
+	}
+}
+
 const (
 	DebugMode Runmode = iota
 	ProductMode
@@ -25,12 +33,14 @@ type Server struct {
 }
 
 func New() *Server {
-	return &Server{
+	s := &Server{
 		handlers:   make([]HandlerFunc, 0),
 		getRouter:  make(map[string][]HandlerFunc),
 		postRouter: make(map[string][]HandlerFunc),
 		anyRouter:  make(map[string][]HandlerFunc),
 	}
+	s.Use(bodyParser())
+	return s
 }
 
 func (this *Server) SetCatch(fn func(ctx *Context, err interface{})) {
@@ -83,11 +93,7 @@ func (this *Server) Run(addr string) error {
 	}
 	this.fprintRouters()
 
-	var mode = "debug"
-	if globalMode == ProductMode {
-		mode = "product"
-	}
-	logger.Info().Msgf("FastAPI server is listening on %s in %s mode.", addr, mode)
+	logger.Info().Msgf("FastAPI server is listening on %s in %s mode.", addr, globalMode.String())
 	return http.ListenAndServe(addr, this)
 }
 

@@ -5,8 +5,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/json-iterator/go"
 	"github.com/pkg/errors"
-	"io/ioutil"
-	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -47,10 +45,11 @@ func newContext(req *http.Request, res http.ResponseWriter) *Context {
 }
 
 type Context struct {
-	Request  *http.Request
-	Response http.ResponseWriter
-	next     bool
-	Storage  Any
+	Request     *http.Request
+	Response    http.ResponseWriter
+	next        bool
+	Storage     Any
+	ContentType string
 }
 
 func (this *Context) Write(code int, body []byte) error {
@@ -60,7 +59,7 @@ func (this *Context) Write(code int, body []byte) error {
 }
 
 func (this *Context) JSON(code int, v interface{}) error {
-	this.Response.Header().Set("Content-Type", ContextType.JSON)
+	this.Response.Header().Set("Content-Type", ContentType.JSON)
 	body, err := jsoniter.Marshal(v)
 	if err != nil {
 		return err
@@ -70,24 +69,15 @@ func (this *Context) JSON(code int, v interface{}) error {
 
 func (this *Context) Bind(v interface{}) error {
 	if this.Request.Method == "POST" {
-		contentType, _, err := mime.ParseMediaType(this.Request.Header.Get("Content-Type"))
-		if err != nil {
-			return err
-		}
-
-		if contentType == ContextType.JSON {
-			body, err := ioutil.ReadAll(this.Request.Body)
-			if err != nil {
-				return err
+		if this.ContentType == ContentType.JSON {
+			body := this.GetBody()
+			if len(body) == 0 {
+				body = []byte("{}")
 			}
-
 			if err := jsoniter.Unmarshal(body, v); err != nil {
 				return err
 			}
-		} else if contentType == ContextType.Form {
-			if err := this.Request.ParseForm(); err != nil {
-				return err
-			}
+		} else if this.ContentType == ContentType.Form {
 			this.bindForm(this.Request.Form, reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
 		} else {
 			return errors.New("unknown content type")
@@ -246,4 +236,9 @@ func (this *Context) ClientIP() string {
 		return "127.0.0.1"
 	}
 	return host
+}
+
+func (this *Context) GetBody() []byte {
+	v, _ := this.Storage.Get("body")
+	return v.([]byte)
 }

@@ -12,7 +12,7 @@ func GetMode() Runmode {
 	return globalMode
 }
 
-var ContextType = struct {
+var ContentType = struct {
 	Text string
 	JSON string
 	Form string

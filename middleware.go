@@ -1,8 +1,11 @@
 package fastapi
 
 import (
+	"bytes"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
+	"io"
+	"mime"
 	"os"
 	"strconv"
 	"strings"
@@ -13,7 +16,7 @@ var (
 	useLogger = false
 )
 
-func init() {
+func setLogger() {
 	var out = zerolog.ConsoleWriter{
 		Out:        os.Stderr,
 		TimeFormat: "2006-01-02 15:04:05",
@@ -60,6 +63,32 @@ func CORS(opt *CorsOption) HandlerFunc {
 		} else {
 			header.Set("Access-Control-Allow-Origin", opt.AllowOrigin)
 			ctx.Next()
+		}
+	}
+}
+
+func bodyParser() HandlerFunc {
+	return func(ctx *Context) {
+		var body = []byte("")
+		defer ctx.Storage.Set("body", body)
+
+		contentType, _, err := mime.ParseMediaType(ctx.Request.Header.Get("Content-Type"))
+		if err != nil {
+			return
+		}
+
+		ctx.ContentType = contentType
+		if contentType == ContentType.Form {
+			err := ctx.Request.ParseForm()
+			if err == nil {
+				body = []byte(ctx.Request.Form.Encode())
+			}
+		} else {
+			var buf = bytes.NewBufferString("")
+			_, err := io.Copy(buf, ctx.Request.Body)
+			if err == nil {
+				body = buf.Bytes()
+			}
 		}
 	}
 }

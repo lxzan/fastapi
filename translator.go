@@ -22,10 +22,6 @@ var (
 	validate *validator.Validate
 )
 
-func init() {
-	SetLang(Chinese)
-}
-
 func SetLang(lang Lang) {
 	switch lang {
 	case Chinese:
