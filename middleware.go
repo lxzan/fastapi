@@ -54,11 +54,11 @@ func CORS(opt *CorsOption) HandlerFunc {
 	return func(ctx *Context) {
 		header := ctx.Response.Header()
 		if ctx.Request.Method == "OPTIONS" {
-			ctx.Response.WriteHeader(204)
 			header.Set("Access-Control-Allow-Origin", opt.AllowOrigin)
 			header.Set("Access-Control-Allow-Methods", strings.Join(opt.AllowMethods, ","))
 			header.Set("Access-Control-Allow-Headers", strings.Join(opt.AllowHeaders, ","))
 			header.Set("Access-Control-Max-Age", strconv.Itoa(opt.MaxAge))
+			ctx.Response.WriteHeader(204)
 			ctx.Abort()
 		} else {
 			header.Set("Access-Control-Allow-Origin", opt.AllowOrigin)
@@ -70,10 +70,9 @@ func CORS(opt *CorsOption) HandlerFunc {
 func bodyParser() HandlerFunc {
 	return func(ctx *Context) {
 		var body = []byte("")
-		defer ctx.Storage.Set("body", body)
-
 		contentType, _, err := mime.ParseMediaType(ctx.Request.Header.Get("Content-Type"))
 		if err != nil {
+			ctx.Storage.Set("body", body)
 			return
 		}
 
@@ -83,12 +82,14 @@ func bodyParser() HandlerFunc {
 			if err == nil {
 				body = []byte(ctx.Request.Form.Encode())
 			}
+			ctx.Storage.Set("body", body)
 		} else {
 			var buf = bytes.NewBufferString("")
 			_, err := io.Copy(buf, ctx.Request.Body)
 			if err == nil {
 				body = buf.Bytes()
 			}
+			ctx.Storage.Set("body", body)
 		}
 	}
 }

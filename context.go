@@ -13,24 +13,20 @@ import (
 )
 
 var defaultCatcher = func(ctx *Context, err interface{}) {
-	var err1 = fmt.Sprintf("%v", err)
-	if len(err1) >= 13 && err1[:13] == "runtime error" {
+	if err1, ok := err.(*Error); ok {
+		ctx.JSON(400, err1)
+		return
+	}
+
+	if globalMode == DebugMode {
 		buf := make([]byte, 2048)
 		n := runtime.Stack(buf, false)
 		stackInfo := fmt.Sprintf("%s", buf[:n])
 		logger.Error().Msg("Runtime Error")
 		println(stackInfo)
-		ctx.Write(500, []byte(stackInfo))
-		return
 	}
 
-	myError, ok := err.(*Error)
-	if ok {
-		ctx.JSON(400, myError)
-	} else {
-		var msg = fmt.Sprintf("%v", err)
-		ctx.Write(400, []byte(msg))
-	}
+	ctx.JSON(500, NewError(Internal, "internal error"))
 }
 
 type HandlerFunc func(ctx *Context)
@@ -136,9 +132,13 @@ func (this *Context) setDefault(typs reflect.Type, values reflect.Value) {
 				v.SetString(val)
 			}
 		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			v.SetInt(ToInt(val))
+			if v.Int() == 0 {
+				v.SetInt(ToInt(val))
+			}
 		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-			v.SetUint(uint64(ToInt(val)))
+			if v.Uint() == 0 {
+				v.SetUint(uint64(ToInt(val)))
+			}
 		}
 	}
 }
