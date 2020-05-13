@@ -33,58 +33,58 @@ type HandlerFunc func(ctx *Context)
 
 func newContext(req *http.Request, res http.ResponseWriter) *Context {
 	return &Context{
+		next:     true,
 		Request:  req,
 		Response: res,
 		Storage:  Any{},
-		next:     true,
 	}
 }
 
 type Context struct {
+	next        bool
 	Request     *http.Request
 	Response    http.ResponseWriter
-	next        bool
 	Storage     Any
 	ContentType string
 }
 
-func (this *Context) Write(code int, body []byte) error {
-	this.Response.WriteHeader(code)
-	_, err := this.Response.Write(body)
+func (c *Context) Write(code int, body []byte) error {
+	c.Response.WriteHeader(code)
+	_, err := c.Response.Write(body)
 	return err
 }
 
-func (this *Context) JSON(code int, v interface{}) error {
-	this.Response.Header().Set("Content-Type", ContentType.JSON)
+func (c *Context) JSON(code int, v interface{}) error {
+	c.Response.Header().Set("Content-Type", ContentType.JSON)
 	body, err := jsoniter.Marshal(v)
 	if err != nil {
 		return err
 	}
-	return this.Write(code, body)
+	return c.Write(code, body)
 }
 
-func (this *Context) Bind(v interface{}) error {
-	if this.Request.Method == "POST" {
-		if this.ContentType == ContentType.JSON {
-			body := this.GetBody()
+func (c *Context) Bind(v interface{}) error {
+	if c.Request.Method == "POST" {
+		if c.ContentType == ContentType.JSON {
+			body := c.GetBody()
 			if len(body) == 0 {
 				body = []byte("{}")
 			}
 			if err := jsoniter.Unmarshal(body, v); err != nil {
 				return err
 			}
-		} else if this.ContentType == ContentType.Form {
-			this.bindForm(this.Request.Form, reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
+		} else if c.ContentType == ContentType.Form {
+			c.bindForm(c.Request.Form, reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
 		} else {
 			return errors.New("unknown content type")
 		}
-	} else if this.Request.Method == "GET" {
-		this.bindForm(this.Request.URL.Query(), reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
+	} else if c.Request.Method == "GET" {
+		c.bindForm(c.Request.URL.Query(), reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
 	} else {
 		return errors.New("unsupport http method")
 	}
 
-	this.setDefault(reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
+	c.setDefault(reflect.TypeOf(v).Elem(), reflect.ValueOf(v).Elem())
 	err := validate.Struct(v)
 	if err != nil {
 		errs := err.(validator.ValidationErrors).Translate(trans)
@@ -99,7 +99,7 @@ func (this *Context) Bind(v interface{}) error {
 	return nil
 }
 
-func (this *Context) setDefault(typs reflect.Type, values reflect.Value) {
+func (c *Context) setDefault(typs reflect.Type, values reflect.Value) {
 	for i := 0; i < values.NumField(); i++ {
 		t := typs.Field(i)
 		v := values.Field(i)
@@ -110,11 +110,11 @@ func (this *Context) setDefault(typs reflect.Type, values reflect.Value) {
 
 		var kind = t.Type.Kind()
 		if kind == reflect.Struct {
-			this.setDefault(t.Type, v)
+			c.setDefault(t.Type, v)
 			continue
 		} else if kind.String() == "ptr" {
 			item := v.Interface()
-			this.setDefault(reflect.TypeOf(item).Elem(), reflect.ValueOf(item).Elem())
+			c.setDefault(reflect.TypeOf(item).Elem(), reflect.ValueOf(item).Elem())
 			continue
 		}
 
@@ -143,7 +143,7 @@ func (this *Context) setDefault(typs reflect.Type, values reflect.Value) {
 	}
 }
 
-func (this *Context) bindForm(query url.Values, typs reflect.Type, values reflect.Value) {
+func (c *Context) bindForm(query url.Values, typs reflect.Type, values reflect.Value) {
 	for i := 0; i < values.NumField(); i++ {
 		t := typs.Field(i)
 		v := values.Field(i)
@@ -154,11 +154,11 @@ func (this *Context) bindForm(query url.Values, typs reflect.Type, values reflec
 
 		var kind = t.Type.Kind()
 		if kind == reflect.Struct {
-			this.bindForm(query, t.Type, v)
+			c.bindForm(query, t.Type, v)
 			continue
 		} else if kind == reflect.Ptr {
 			item := v.Interface()
-			this.bindForm(query, reflect.TypeOf(item).Elem(), reflect.ValueOf(item).Elem())
+			c.bindForm(query, reflect.TypeOf(item).Elem(), reflect.ValueOf(item).Elem())
 			continue
 		}
 
@@ -214,21 +214,21 @@ func (this *Context) bindForm(query url.Values, typs reflect.Type, values reflec
 	}
 }
 
-func (this *Context) Next() {
-	this.next = true
+func (c *Context) Next() {
+	c.next = true
 }
 
-func (this *Context) Abort() {
-	this.next = false
+func (c *Context) Abort() {
+	c.next = false
 }
 
-func (this *Context) ClientIP() string {
-	var ip = this.Request.Header.Get("X-Real-Ip")
+func (c *Context) ClientIP() string {
+	var ip = c.Request.Header.Get("X-Real-Ip")
 	if ip != "" {
 		return ip
 	}
 
-	host, _, err := net.SplitHostPort(this.Request.RemoteAddr)
+	host, _, err := net.SplitHostPort(c.Request.RemoteAddr)
 	if err != nil {
 		return ""
 	}
@@ -238,7 +238,7 @@ func (this *Context) ClientIP() string {
 	return host
 }
 
-func (this *Context) GetBody() []byte {
-	v, _ := this.Storage.Get("body")
+func (c *Context) GetBody() []byte {
+	v, _ := c.Storage.Get("body")
 	return v.([]byte)
 }

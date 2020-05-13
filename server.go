@@ -98,8 +98,10 @@ func (this *Server) Run(addr string) error {
 }
 
 func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+	accessMap.Add(req.URL.Path)
 	t0 := time.Now().UnixNano()
 	defer func() {
+		accessMap.Sub(req.URL.Path)
 		if useLogger {
 			t1 := time.Now().UnixNano()
 			cost := fmt.Sprintf("%dms", (t1-t0)/1000000)

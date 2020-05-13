@@ -9,6 +9,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var (
@@ -90,6 +91,20 @@ func bodyParser() HandlerFunc {
 				body = buf.Bytes()
 			}
 			ctx.Storage.Set("body", body)
+		}
+	}
+}
+
+// limit concurrent access speed
+func Limit(n int64) HandlerFunc {
+	return func(ctx *Context) {
+		for {
+			var running = accessMap.Get(ctx.Request.URL.Path)
+			if running > n {
+				time.Sleep(10 * time.Millisecond)
+			} else {
+				break
+			}
 		}
 	}
 }
