@@ -11,8 +11,8 @@ import (
 
 type Runmode uint8
 
-func (this Runmode) String() string {
-	if this == ProductMode {
+func (r Runmode) String() string {
+	if r == ProductMode {
 		return "product"
 	} else {
 		return "debug"
@@ -43,61 +43,61 @@ func New() *Server {
 	return s
 }
 
-func (this *Server) SetCatch(fn func(ctx *Context, err interface{})) {
-	this.catch = fn
+func (s *Server) SetCatch(fn func(ctx *Context, err interface{})) {
+	s.catch = fn
 }
 
 // global middleware
-func (this *Server) Use(handles ...HandlerFunc) {
+func (s *Server) Use(handles ...HandlerFunc) {
 	for _, handle := range handles {
 		name := runtime.FuncForPC(reflect.ValueOf(handle).Pointer()).Name()
 		if !strings.Contains(name, "github.com/lxzan/fastapi.Logger") {
-			this.handlers = append(this.handlers, handle)
+			s.handlers = append(s.handlers, handle)
 		}
 	}
 }
 
-func (this *Server) prepare(handlers ...HandlerFunc) []HandlerFunc {
+func (s *Server) prepare(handlers ...HandlerFunc) []HandlerFunc {
 	var h = make([]HandlerFunc, 0)
 	h = append(h, handlers...)
 	return h
 }
 
-func (this *Server) Group(prefix string, handlers ...HandlerFunc) *Group {
+func (s *Server) Group(prefix string, handlers ...HandlerFunc) *Group {
 	if len(handlers) == 0 {
 		handlers = make([]HandlerFunc, 0)
 	}
 
 	return &Group{
-		server:   this,
+		server:   s,
 		prefix:   prefix,
 		handlers: handlers,
 	}
 }
 
-func (this *Server) GET(path string, handles ...HandlerFunc) {
-	this.getRouter[path] = this.prepare(handles...)
+func (s *Server) GET(path string, handles ...HandlerFunc) {
+	s.getRouter[path] = s.prepare(handles...)
 }
 
-func (this *Server) POST(path string, handles ...HandlerFunc) {
-	this.postRouter[path] = this.prepare(handles...)
+func (s *Server) POST(path string, handles ...HandlerFunc) {
+	s.postRouter[path] = s.prepare(handles...)
 }
 
-func (this *Server) ANY(path string, handles ...HandlerFunc) {
-	this.anyRouter[path] = this.prepare(handles...)
+func (s *Server) ANY(path string, handles ...HandlerFunc) {
+	s.anyRouter[path] = s.prepare(handles...)
 }
 
-func (this *Server) Run(addr string) error {
-	if this.catch == nil {
-		this.catch = defaultCatcher
+func (s *Server) Run(addr string) error {
+	if s.catch == nil {
+		s.catch = defaultCatcher
 	}
-	this.fprintRouters()
+	s.fprintRouters()
 
 	logger.Info().Msgf("FastAPI server is listening on %s in %s mode.", addr, globalMode.String())
-	return http.ListenAndServe(addr, this)
+	return http.ListenAndServe(addr, s)
 }
 
-func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
+func (s *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	accessMap.Add(req.URL.Path)
 	t0 := time.Now().UnixNano()
 	defer func() {
@@ -112,11 +112,11 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	var ctx = newContext(req, res)
 	defer func() {
 		if err := recover(); err != nil {
-			this.catch(ctx, err)
+			s.catch(ctx, err)
 		}
 	}()
 
-	for _, fn := range this.handlers {
+	for _, fn := range s.handlers {
 		fn(ctx)
 		if !ctx.next {
 			return
@@ -129,13 +129,13 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 
 	switch req.Method {
 	case "GET":
-		handlers, exist = this.getRouter[req.URL.Path]
+		handlers, exist = s.getRouter[req.URL.Path]
 	case "POST":
-		handlers, exist = this.postRouter[req.URL.Path]
+		handlers, exist = s.postRouter[req.URL.Path]
 	}
 
 	if !exist {
-		handlers, exist = this.anyRouter[req.URL.Path]
+		handlers, exist = s.anyRouter[req.URL.Path]
 	}
 
 	if !exist {
@@ -150,13 +150,13 @@ func (this *Server) ServeHTTP(res http.ResponseWriter, req *http.Request) {
 	}
 }
 
-func (this *Server) fprintRouters() {
+func (s *Server) fprintRouters() {
 	var m = make([]struct {
 		Path   string
 		Method string
 		Fn     string
 	}, 0)
-	for k, fns := range this.getRouter {
+	for k, fns := range s.getRouter {
 		var n = len(fns)
 		if n == 0 {
 			continue
@@ -169,7 +169,7 @@ func (this *Server) fprintRouters() {
 			Fn     string
 		}{Path: k, Method: "GET", Fn: fn})
 	}
-	for k, fns := range this.postRouter {
+	for k, fns := range s.postRouter {
 		var n = len(fns)
 		if n == 0 {
 			continue
@@ -182,7 +182,7 @@ func (this *Server) fprintRouters() {
 			Fn     string
 		}{Path: k, Method: "POST", Fn: fn})
 	}
-	for k, fns := range this.anyRouter {
+	for k, fns := range s.anyRouter {
 		var n = len(fns)
 		if n == 0 {
 			continue
